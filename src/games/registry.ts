@@ -16,6 +16,14 @@ export const games: GameListing[] = [
     path: '/games/drop-four',
     status: 'playable',
   },
+  {
+    slug: 'tank-battle',
+    title: '坦克大战',
+    englishTitle: 'Tank Battle',
+    description: '10 关 Canvas 坦克战，随机地图、基地防守、移动端触控和 Kenney CC0 音效。',
+    path: '/games/tank-battle',
+    status: 'playable',
+  },
 ];
 
 export function getGameByPath(pathname: string): GameListing | undefined {

@@ -6,18 +6,41 @@ test('opens the game shelf home with the Drop Four card', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '小游戏架' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '四子棋' })).toBeVisible();
   await expect(page.getByText('Drop Four')).toBeVisible();
-  await expect(page.getByRole('button', { name: '开始游戏' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '坦克大战' })).toBeVisible();
+  await expect(page.getByText('Tank Battle')).toBeVisible();
+  await expect(page.getByRole('button', { name: '开始游戏' })).toHaveCount(2);
 });
 
 test('enters Drop Four from the home page', async ({ page }) => {
   await page.goto('/');
 
-  await page.getByRole('button', { name: '开始游戏' }).click();
+  await page
+    .locator('article')
+    .filter({ has: page.getByRole('heading', { name: '四子棋' }) })
+    .getByRole('button', { name: '开始游戏' })
+    .click();
 
   await expect(page).toHaveURL(/\/games\/drop-four$/);
   await expect(page.getByRole('heading', { name: 'Drop Four' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText("Player 1's turn");
   await expect(page.getByRole('button', { name: 'Restart game' })).toBeVisible();
+});
+
+test('enters Tank Battle from the home page', async ({ page }) => {
+  await page.goto('/');
+
+  await page
+    .locator('article')
+    .filter({ has: page.getByRole('heading', { name: '坦克大战' }) })
+    .getByRole('button', { name: '开始游戏' })
+    .click();
+
+  await expect(page).toHaveURL(/\/games\/tank-battle$/);
+  await expect(page.getByRole('heading', { name: 'Tank Battle' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Level 1/10');
+  await expect(page.getByTestId('tank-canvas')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sound On' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Full Screen' })).toHaveCount(0);
 });
 
 test('recovers from an unknown route', async ({ page }) => {
@@ -123,14 +146,46 @@ test('keeps the home and game playable at a 360px viewport', async ({ page }) =>
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: '小游戏架' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '开始游戏' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '开始游戏' })).toHaveCount(2);
   await assertNoHorizontalScroll(page);
 
-  await page.getByRole('button', { name: '开始游戏' }).click();
+  await page
+    .locator('article')
+    .filter({ has: page.getByRole('heading', { name: '四子棋' }) })
+    .getByRole('button', { name: '开始游戏' })
+    .click();
   await expect(page.getByTestId('board')).toBeVisible();
   await expect(page.getByRole('status')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Restart game' })).toBeVisible();
   await dropInColumn(page, 1);
+  await assertNoHorizontalScroll(page);
+});
+
+test('keeps Tank Battle playable at a 360px viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.goto('/games/tank-battle');
+  await page.waitForTimeout(600);
+
+  const status = page.getByRole('status');
+  const initialStatusBox = await status.boundingBox();
+  const initialCanvasBox = await page.getByTestId('tank-canvas').boundingBox();
+  expect(initialStatusBox).not.toBeNull();
+  expect(initialCanvasBox).not.toBeNull();
+  await expect(page.getByTestId('tank-canvas')).toBeVisible();
+  await expect(status).toContainText('Level 1/10');
+  await status.evaluate((element) => {
+    element.textContent = 'Level 1/10 | AP 10.0s | Headquarters destroyed. Tap RST to retry this level.';
+  });
+  const longStatusBox = await status.boundingBox();
+  const longCanvasBox = await page.getByTestId('tank-canvas').boundingBox();
+  expect(longStatusBox).not.toBeNull();
+  expect(longCanvasBox).not.toBeNull();
+  expect(longStatusBox?.height).toBe(initialStatusBox?.height);
+  expect(Math.abs((longCanvasBox?.y ?? 0) - (initialCanvasBox?.y ?? 0))).toBeLessThan(0.5);
+  await expect(page.getByTestId('tank-controls')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Full Screen' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Fire' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Restart current level' })).toBeVisible();
   await assertNoHorizontalScroll(page);
 });
 

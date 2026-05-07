@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import DropFourGame from './games/drop-four/DropFourGame';
+import TankBattleGame from './games/tank-battle/TankBattleGame';
 import { games, getGameByPath } from './games/registry';
 
 export default function App() {
@@ -17,6 +18,10 @@ export default function App() {
 
   if (game?.slug === 'drop-four') {
     return <DropFourGame onBackHome={() => navigateTo('/')} />;
+  }
+
+  if (game?.slug === 'tank-battle') {
+    return <TankBattleGame onBackHome={() => navigateTo('/')} />;
   }
 
   if (pathname !== '/') {
