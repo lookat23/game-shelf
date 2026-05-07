@@ -26,6 +26,8 @@ describe('Tank Battle AP and base approach rules', () => {
       expect(snapshot.wallTurnRecoveryStarted).toBe(true);
       expect(snapshot.wallTurnRecoveryRepeatedSameSide).toBe(true);
       expect(snapshot.wallTurnRecoveryResetAfterOneCell).toBe(true);
+      expect(snapshot.committedMovementHeldUntilOneCell).toBe(true);
+      expect(snapshot.immediateReverseAvoidedInOpenArea).toBe(true);
       expect(snapshot.verticalOscillationEscaped).toBe(true);
       expect(snapshot.horizontalOscillationEscaped).toBe(true);
       expect(snapshot.playerContactAvoided).toBe(true);

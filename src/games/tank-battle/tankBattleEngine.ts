@@ -37,6 +37,8 @@ interface Tank extends Rect {
   oscillationEscapeSide: TurnSide | null;
   oscillationEscapeDirection: Direction | null;
   oscillationEscapeDistance: number;
+  moveCommitDirection: Direction | null;
+  moveCommitDistance: number;
 }
 
 interface Bullet extends Rect {
@@ -182,6 +184,8 @@ function createTank(team: Team, x: number, y: number, direction: Direction, leve
     oscillationEscapeSide: null,
     oscillationEscapeDirection: null,
     oscillationEscapeDistance: 0,
+    moveCommitDirection: null,
+    moveCommitDistance: 0,
   };
 }
 
@@ -957,6 +961,7 @@ function updateEnemy(game: GameState, enemy: Tank, dt: number): void {
     enemy.repathTime = 0.35;
   }
 
+  updateMoveCommitmentState(enemy, movedDirection, movedDistance);
   updateTurnRecoveryState(enemy, movedDistance);
   updateOscillationState(enemy, movedDirection, movedDistance);
 
@@ -1055,6 +1060,15 @@ function getEnemyMoveOptions(game: GameState, enemy: Tank, preferred: Direction 
     return getRepeatedTurnDirections(enemy.direction, enemy.turnRecoverySide);
   }
 
+  if (enemy.moveCommitDirection) {
+    if (canMoveTank(enemy, enemy.moveCommitDirection, game)) {
+      const primary = preferred ?? enemy.direction;
+      return [enemy.moveCommitDirection, primary, ...getFallbackDirections(primary)];
+    }
+
+    resetEnemyMoveCommitment(enemy);
+  }
+
   if (tankBlockDirection) {
     const slideOptions = getWallSlideDirections(tankBlockDirection).filter((direction) => canMoveTank(enemy, direction, game));
 
@@ -1072,6 +1086,12 @@ function getEnemyMoveOptions(game: GameState, enemy: Tank, preferred: Direction 
 
   if (!preferred) {
     return getFallbackDirections(enemy.direction);
+  }
+
+  const antiLoopDirections = getAntiLoopDirections(game, enemy, preferred);
+
+  if (antiLoopDirections.length > 0) {
+    return antiLoopDirections;
   }
 
   if (!canMoveTank(enemy, preferred, game, true)) {
@@ -1117,6 +1137,46 @@ function updateTurnRecoveryState(enemy: Tank, movedDistance: number): void {
 function resetEnemyTurnRecovery(enemy: Tank): void {
   enemy.turnRecoverySide = null;
   enemy.turnRecoveryDistance = 0;
+}
+
+function updateMoveCommitmentState(enemy: Tank, movedDirection: Direction | null, movedDistance: number): void {
+  if (!movedDirection || movedDistance <= 0) {
+    return;
+  }
+
+  if (enemy.moveCommitDirection !== movedDirection) {
+    enemy.moveCommitDirection = movedDirection;
+    enemy.moveCommitDistance = 0;
+  }
+
+  enemy.moveCommitDistance += movedDistance;
+
+  if (enemy.moveCommitDistance >= TILE) {
+    resetEnemyMoveCommitment(enemy);
+  }
+}
+
+function resetEnemyMoveCommitment(enemy: Tank): void {
+  enemy.moveCommitDirection = null;
+  enemy.moveCommitDistance = 0;
+}
+
+function getAntiLoopDirections(game: GameState, enemy: Tank, preferred: Direction): Direction[] {
+  const lastMoveDirection = enemy.lastMoveDirection;
+
+  if (!lastMoveDirection || preferred !== opposite(lastMoveDirection)) {
+    return [];
+  }
+
+  const sideOptions = getWallSlideDirections(lastMoveDirection).filter((direction) =>
+    canMoveTank(enemy, direction, game),
+  );
+
+  if (sideOptions.length === 0) {
+    return [];
+  }
+
+  return [...sideOptions, lastMoveDirection, preferred];
 }
 
 function updateOscillationState(enemy: Tank, movedDirection: Direction | null, movedDistance: number): void {
@@ -2155,6 +2215,8 @@ export function createTankBattleTestSnapshot(level = 1): {
   wallTurnRecoveryStarted: boolean;
   wallTurnRecoveryRepeatedSameSide: boolean;
   wallTurnRecoveryResetAfterOneCell: boolean;
+  committedMovementHeldUntilOneCell: boolean;
+  immediateReverseAvoidedInOpenArea: boolean;
   verticalOscillationEscaped: boolean;
   horizontalOscillationEscaped: boolean;
   playerContactAvoided: boolean;
@@ -2285,6 +2347,31 @@ export function createTankBattleTestSnapshot(level = 1): {
   updateTurnRecoveryState(resetEnemy, 1.1);
   const wallTurnRecoveryResetAfterOneCell =
     resetEnemy.turnRecoverySide === null && resetEnemy.turnRecoveryDistance === 0;
+  const commitmentState = createLevelState(level);
+  const commitmentEnemy = commitmentState.enemies[0];
+  commitmentState.blocks = [];
+  commitmentEnemy.x = cellToX(8);
+  commitmentEnemy.y = cellToY(8);
+  commitmentEnemy.direction = "down";
+  commitmentEnemy.moveCommitDirection = "down";
+  commitmentEnemy.moveCommitDistance = TILE / 2;
+  const committedOptions = getEnemyMoveOptions(commitmentState, commitmentEnemy, "up");
+  updateMoveCommitmentState(commitmentEnemy, "down", TILE / 2 + 1);
+  const releasedOptions = getEnemyMoveOptions(commitmentState, commitmentEnemy, "up");
+  const committedMovementHeldUntilOneCell =
+    committedOptions[0] === "down" &&
+    commitmentEnemy.moveCommitDirection === null &&
+    releasedOptions[0] === "up";
+  const antiLoopState = createLevelState(level);
+  const antiLoopEnemy = antiLoopState.enemies[0];
+  antiLoopState.blocks = [];
+  antiLoopEnemy.x = cellToX(8);
+  antiLoopEnemy.y = cellToY(8);
+  antiLoopEnemy.direction = "up";
+  antiLoopEnemy.lastMoveDirection = "up";
+  const antiLoopOptions = getEnemyMoveOptions(antiLoopState, antiLoopEnemy, "down");
+  const immediateReverseAvoidedInOpenArea =
+    antiLoopOptions[0] !== "down" && getDirectionAxis(antiLoopOptions[0]) === "horizontal";
   const verticalOscillationState = createLevelState(level);
   const verticalOscillationEnemy = verticalOscillationState.enemies[0];
   verticalOscillationState.blocks = [];
@@ -2371,6 +2458,8 @@ export function createTankBattleTestSnapshot(level = 1): {
     wallTurnRecoveryStarted,
     wallTurnRecoveryRepeatedSameSide,
     wallTurnRecoveryResetAfterOneCell,
+    committedMovementHeldUntilOneCell,
+    immediateReverseAvoidedInOpenArea,
     verticalOscillationEscaped,
     horizontalOscillationEscaped,
     playerContactAvoided:
