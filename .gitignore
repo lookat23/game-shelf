@@ -1,6 +1,12 @@
-node_modules
-dist
-playwright-report
-test-results
-.vite
+node_modules/
+dist/
+playwright-report/
+test-results/
+.vite/
+
+coverage/
+*.log
+.env.local
+.env.*.local
+
 .DS_Store
